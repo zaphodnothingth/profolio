@@ -208,13 +208,21 @@ app.get('/api/contacts/:id/export-vcard', async (req, res) => {
         const contact = await db.get('SELECT * FROM contacts WHERE id = ?', [req.params.id]);
         if (!contact)
             return res.status(404).json({ error: 'Contact not found' });
-        const vcard = `BEGIN:VCARD\nVERSION:3.0\nN:${contact.lastName};${contact.firstName};;;\nFN:${contact.firstName} ${contact.lastName}\nEMAIL;TYPE=INTERNET:${contact.email || ''}\nTEL;TYPE=CELL:${contact.phone || ''}\nNOTE:${contact.notes ? contact.notes.replace(/\\n/g, '\\\\n') : ''}\nEND:VCARD`;
+        const vcard = `BEGIN:VCARD
+VERSION:3.0
+N:${contact.lastName || ''};${contact.firstName || ''};;;
+FN:${contact.firstName || ''} ${contact.lastName || ''}
+EMAIL;TYPE=INTERNET:${contact.email || ''}
+TEL;TYPE=CELL:${contact.phone || ''}
+NOTE:${contact.skills ? 'Skills: ' + contact.skills + '\\n' : ''}${contact.notes || ''}
+END:VCARD`.trim();
+        const filename = `${contact.firstName || 'contact'}_${contact.lastName || ''}`.replace(/\s+/g, '_').toLowerCase();
         res.setHeader('Content-Type', 'text/vcard');
-        res.setHeader('Content-Disposition', `attachment; filename="${contact.firstName}_${contact.lastName}.vcf"`);
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}.vcf"`);
         res.send(vcard);
     }
     catch (error) {
-        res.status(500).json({ error: 'Failed to export contact vcard' });
+        res.status(500).json({ error: 'Failed to export vcard' });
     }
 });
 app.get('/api/projects/:id/contacts', async (req, res) => {

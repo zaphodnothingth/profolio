@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useToast } from '../context/ToastContext';
 
 interface Contact {
   id: number;
@@ -26,7 +25,6 @@ const API_URL = 'http://localhost:3001/api/contacts';
 
 export default function ContactProfile() {
   const { id } = useParams<{ id: string }>();
-  const { addToast } = useToast();
   const [contact, setContact] = useState<Contact | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,10 +48,7 @@ export default function ContactProfile() {
     fetchContactData();
   }, [id]);
 
-  const handleExportVCard = () => {
-    window.open(`${API_URL}/${id}/export-vcard`, '_blank');
-    addToast('Downloading vCard...', 'info');
-  };
+  // vCard export handled by native <a> tag download attribute now
 
   if (loading) {
     return (
@@ -102,9 +97,14 @@ export default function ContactProfile() {
             </div>
           </div>
         </div>
-        <button className="btn btn-primary" onClick={handleExportVCard}>
+        <a 
+          href={`${API_URL}/${id}/export-vcard`} 
+          download 
+          className="btn btn-primary"
+          style={{ textDecoration: 'none' }}
+        >
           Export to Apple/Google Contacts
-        </button>
+        </a>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, 1fr) minmax(300px, 2fr)', gap: '2rem', marginTop: '3rem' }}>
