@@ -27,7 +27,8 @@ async function initializeDB() {
       role TEXT,
       startDate TEXT,
       endDate TEXT,
-      description TEXT
+      description TEXT,
+      rating INTEGER
     );
     
     CREATE TABLE IF NOT EXISTS contacts (
@@ -51,6 +52,15 @@ async function initializeDB() {
       FOREIGN KEY (contactId) REFERENCES contacts(id)
     );
   `);
+  
+  // Migration: Add rating column if it doesn't exist (ignores error if it does)
+  try {
+    await db.exec(`ALTER TABLE projects ADD COLUMN rating INTEGER`);
+    console.log('Migration: Added rating column to projects');
+  } catch (e) {
+    // Column already exists
+  }
+  
   console.log('Database initialized');
 }
 
@@ -72,14 +82,27 @@ app.get('/api/projects', async (req, res) => {
 
 app.post('/api/projects', async (req, res) => {
   try {
-    const { name, company, role, startDate, endDate, description } = req.body;
+    const { name, company, role, startDate, endDate, description, rating } = req.body;
     const result = await db.run(
-      'INSERT INTO projects (name, company, role, startDate, endDate, description) VALUES (?, ?, ?, ?, ?, ?)',
-      [name, company, role, startDate, endDate, description]
+      'INSERT INTO projects (name, company, role, startDate, endDate, description, rating) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [name, company, role, startDate, endDate, description, rating]
     );
     res.status(201).json({ id: result.lastID });
   } catch (error) {
     res.status(500).json({ error: 'Failed to create project' });
+  }
+});
+
+app.put('/api/projects/:id', async (req, res) => {
+  try {
+    const { name, company, role, startDate, endDate, description, rating } = req.body;
+    await db.run(
+      'UPDATE projects SET name = ?, company = ?, role = ?, startDate = ?, endDate = ?, description = ?, rating = ? WHERE id = ?',
+      [name, company, role, startDate, endDate, description, rating, req.params.id]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update project' });
   }
 });
 
@@ -90,6 +113,16 @@ app.get('/api/projects/:id', async (req, res) => {
     res.json(project);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch project' });
+  }
+});
+
+app.delete('/api/projects/:id', async (req, res) => {
+  try {
+    await db.run('DELETE FROM project_contacts WHERE projectId = ?', [req.params.id]);
+    await db.run('DELETE FROM projects WHERE id = ?', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete project' });
   }
 });
 
@@ -134,6 +167,19 @@ app.post('/api/contacts', async (req, res) => {
   }
 });
 
+app.put('/api/contacts/:id', async (req, res) => {
+  try {
+    const { firstName, lastName, email, phone, skills, notes, relationshipStrength, lastContacted } = req.body;
+    await db.run(
+      'UPDATE contacts SET firstName = ?, lastName = ?, email = ?, phone = ?, skills = ?, notes = ?, relationshipStrength = ?, lastContacted = ? WHERE id = ?',
+      [firstName, lastName, email, phone, skills, notes, relationshipStrength, lastContacted, req.params.id]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update contact' });
+  }
+});
+
 app.get('/api/contacts/:id', async (req, res) => {
   try {
     const contact = await db.get('SELECT * FROM contacts WHERE id = ?', [req.params.id]);
@@ -141,6 +187,34 @@ app.get('/api/contacts/:id', async (req, res) => {
     res.json(contact);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch contact' });
+  }
+});
+
+app.delete('/api/contacts/:id', async (req, res) => {
+  try {
+    await db.run('DELETE FROM project_contacts WHERE contactId = ?', [req.params.id]);
+    await db.run('DELETE FROM contacts WHERE id = ?', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete contact' });
+  }
+});
+
+app.post('/api/contacts/bulk-delete', async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Invalid or empty IDs array' });
+    }
+    
+    // SQLite doesn't natively support binding arrays into IN (?), so we generate placeholders
+    const placeholders = ids.map(() => '?').join(',');
+    await db.run(`DELETE FROM project_contacts WHERE contactId IN (${placeholders})`, ids);
+    await db.run(`DELETE FROM contacts WHERE id IN (${placeholders})`, ids);
+    
+    res.json({ success: true, deletedCount: ids.length });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to bulk delete contacts' });
   }
 });
 

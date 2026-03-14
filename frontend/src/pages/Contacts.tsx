@@ -21,10 +21,24 @@ export default function Contacts() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newContact, setNewContact] = useState({
+  const [newContact, setNewContact] = useState<{
+    id?: number;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    skills: string;
+    notes: string;
+    relationshipStrength: number | string;
+    lastContacted: string;
+  }>({
     firstName: '', lastName: '', email: '', phone: '',
-    skills: '', notes: '', relationshipStrength: 5 as number | string, lastContacted: ''
+    skills: '', notes: '', relationshipStrength: 5, lastContacted: ''
   });
+  
+  const [selectedContactIds, setSelectedContactIds] = useState<Set<number>>(new Set());
+  const [lastCheckedId, setLastCheckedId] = useState<number | null>(null);
+  const [isSelectMode, setIsSelectMode] = useState(false);
 
   const fetchContacts = async () => {
     try {
@@ -45,9 +59,25 @@ export default function Contacts() {
 
   const handleCreateContact = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Manual validation to provide clear Toast feedback instead of silent HTML5 tooltips
+    if (!newContact.firstName.trim() || !newContact.lastName.trim()) {
+      addToast('First Name and Last Name are required.', 'error');
+      return;
+    }
+    const strength = Number(newContact.relationshipStrength);
+    if (isNaN(strength) || strength < 1 || strength > 10) {
+      addToast('Relationship Strength must be a number between 1 and 10.', 'error');
+      return;
+    }
+
+    const isEdit = !!newContact.id;
+    const url = isEdit ? `${API_URL}/${newContact.id}` : API_URL;
+    const method = isEdit ? 'PUT' : 'POST';
+
     try {
-      const res = await fetch(API_URL, {
-        method: 'POST',
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newContact),
       });
@@ -58,13 +88,125 @@ export default function Contacts() {
           firstName: '', lastName: '', email: '', phone: '',
           skills: '', notes: '', relationshipStrength: 5, lastContacted: ''
         });
-        addToast('Contact added successfully!', 'success');
+        addToast(`Contact ${isEdit ? 'updated' : 'added'} successfully!`, 'success');
       } else {
-        addToast('Failed to add contact.', 'error');
+        addToast(`Failed to ${isEdit ? 'update' : 'add'} contact.`, 'error');
       }
     } catch (error) {
-      console.error('Failed to create contact', error);
+      console.error('Failed to save contact', error);
       addToast('Network error while saving.', 'error');
+    }
+  };
+
+  const handleDeleteContact = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!newContact.id) return;
+    
+    if (!window.confirm('Are you sure you want to delete this contact?')) return;
+
+    try {
+      const res = await fetch(`${API_URL}/${newContact.id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setShowAddForm(false);
+        setNewContact({
+          firstName: '', lastName: '', email: '', phone: '',
+          skills: '', notes: '', relationshipStrength: 5, lastContacted: ''
+        });
+        fetchContacts();
+        selectedContactIds.delete(newContact.id);
+        setSelectedContactIds(new Set(selectedContactIds));
+        addToast('Contact deleted successfully.', 'success');
+      } else {
+        addToast('Failed to delete contact.', 'error');
+      }
+    } catch (error) {
+      console.error('Failed to delete contact', error);
+      addToast('Network error while deleting.', 'error');
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedContactIds.size === 0) return;
+    if (!window.confirm(`Are you sure you want to delete ${selectedContactIds.size} contacts?`)) return;
+
+    try {
+      const res = await fetch(`${API_URL}/bulk-delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedContactIds) }),
+      });
+      
+      if (res.ok) {
+        setSelectedContactIds(new Set());
+        setLastCheckedId(null);
+        fetchContacts();
+        addToast(`Successfully deleted ${selectedContactIds.size} contacts.`, 'success');
+      } else {
+        addToast('Failed to delete contacts.', 'error');
+      }
+    } catch (error) {
+      console.error('Failed to bulk delete contacts', error);
+      addToast('Network error while deleting.', 'error');
+    }
+  };
+
+  const handleEditClick = (contact: Contact) => {
+    setNewContact({
+      id: contact.id,
+      firstName: contact.firstName,
+      lastName: contact.lastName,
+      email: contact.email || '',
+      phone: contact.phone || '',
+      skills: contact.skills || '',
+      notes: contact.notes || '',
+      relationshipStrength: contact.relationshipStrength || 5,
+      lastContacted: contact.lastContacted || ''
+    });
+    setShowAddForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCheckboxChange = (contactId: number, e: React.MouseEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+    const isChecked = e.currentTarget.checked;
+    const newSelected = new Set(selectedContactIds);
+
+    if (e.shiftKey && lastCheckedId !== null) {
+      // Find indexes in currently rendered array to do a range selection
+      const currentIndex = contacts.findIndex(c => c.id === contactId);
+      const lastIndex = contacts.findIndex(c => c.id === lastCheckedId);
+      
+      if (currentIndex !== -1 && lastIndex !== -1) {
+        const start = Math.min(currentIndex, lastIndex);
+        const end = Math.max(currentIndex, lastIndex);
+        
+        for (let i = start; i <= end; i++) {
+          if (isChecked) {
+            newSelected.add(contacts[i].id);
+          } else {
+            newSelected.delete(contacts[i].id);
+          }
+        }
+      }
+    } else {
+      if (isChecked) {
+        newSelected.add(contactId);
+      } else {
+        newSelected.delete(contactId);
+      }
+    }
+
+    setSelectedContactIds(newSelected);
+    setLastCheckedId(contactId);
+  };
+
+  const toggleSelectMode = () => {
+    if (isSelectMode) {
+      setIsSelectMode(false);
+      setSelectedContactIds(new Set());
+      setLastCheckedId(null);
+    } else {
+      setIsSelectMode(true);
     }
   };
 
@@ -75,15 +217,35 @@ export default function Contacts() {
           <h1 className="text-gradient">Contact Book</h1>
           <p className="text-secondary">Manage your professional network contextually.</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowAddForm(!showAddForm)}>
-          {showAddForm ? 'Cancel' : '+ Add Contact'}
-        </button>
+        <div style={{ display: 'flex', gap: '1rem' }}>
+          {selectedContactIds.size > 0 && isSelectMode && (
+            <button className="btn btn-secondary" onClick={handleBulkDelete} style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }}>
+              Delete Selected ({selectedContactIds.size})
+            </button>
+          )}
+          <button className="btn btn-secondary" onClick={toggleSelectMode}>
+            {isSelectMode ? 'Cancel Selection' : 'Select'}
+          </button>
+          <button className="btn btn-primary" onClick={() => {
+            if (showAddForm) {
+              setShowAddForm(false);
+              setNewContact({
+                firstName: '', lastName: '', email: '', phone: '',
+                skills: '', notes: '', relationshipStrength: 5, lastContacted: ''
+              });
+            } else {
+              setShowAddForm(true);
+            }
+          }}>
+            {showAddForm ? 'Cancel' : '+ Add Contact'}
+          </button>
+        </div>
       </div>
 
       {showAddForm && (
         <div className="glass-panel animate-fade-in-up" style={{ marginBottom: '2rem' }}>
-          <h3>Add New Contact</h3>
-          <form onSubmit={handleCreateContact}>
+          <h3>{newContact.id ? 'Edit Contact' : 'Add New Contact'}</h3>
+          <form onSubmit={handleCreateContact} noValidate>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div className="input-group">
                 <label className="input-label">First Name</label>
@@ -157,7 +319,14 @@ export default function Contacts() {
               ></textarea>
             </div>
             
-            <button type="submit" className="btn btn-primary" disabled={newContact.relationshipStrength === ''}>Save Contact</button>
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button type="submit" className="btn btn-primary" disabled={newContact.relationshipStrength === ''}>Save Contact</button>
+              {newContact.id && (
+                <button type="button" className="btn btn-secondary" onClick={handleDeleteContact} style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }}>
+                  Delete Contact
+                </button>
+              )}
+            </div>
           </form>
         </div>
       )}
@@ -178,10 +347,27 @@ export default function Contacts() {
             <Link 
               key={contact.id} 
               to={`/contacts/${contact.id}`} 
-              className={`glass-panel animate-fade-in-up stagger-${(idx % 4) + 1}`} 
-              style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
+              className={`glass-panel animate-fade-in-up stagger-${(idx % 4) + 1} contact-card`} 
+              style={{ textDecoration: 'none', color: 'inherit', display: 'block', position: 'relative' }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+              {isSelectMode && (
+                <input 
+                  type="checkbox" 
+                  checked={selectedContactIds.has(contact.id)}
+                  onChange={() => {}} // Dummy to suppress React warning
+                  onClick={(e: React.MouseEvent<HTMLInputElement>) => { e.preventDefault(); e.stopPropagation(); handleCheckboxChange(contact.id, e); }}
+                  style={{ position: 'absolute', top: '1.25rem', left: '1.25rem', transform: 'scale(1.2)', cursor: 'pointer', zIndex: 10 }}
+                />
+              )}
+              <button 
+                className="edit-btn"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleEditClick(contact); }} 
+                style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '0.25rem', zIndex: 10 }}
+                title="Edit Contact"
+              >
+                ✏️
+              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem', paddingLeft: isSelectMode ? '2.5rem' : '0' }}>
                 <div style={{ 
                   width: '48px', height: '48px', 
                   borderRadius: '50%', 
