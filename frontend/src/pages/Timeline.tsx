@@ -162,6 +162,7 @@ export default function Timeline() {
                   type="text" 
                   className="input-control" 
                   required 
+                  spellCheck={true}
                   value={newProject.name}
                   onChange={(e) => setNewProject({...newProject, name: e.target.value})}
                 />
@@ -171,6 +172,7 @@ export default function Timeline() {
                 <input 
                   type="text" 
                   className="input-control" 
+                  spellCheck={true}
                   value={newProject.company}
                   onChange={(e) => setNewProject({...newProject, company: e.target.value})}
                 />
@@ -180,6 +182,7 @@ export default function Timeline() {
                 <input 
                   type="text" 
                   className="input-control" 
+                  spellCheck={true}
                   value={newProject.role}
                   onChange={(e) => setNewProject({...newProject, role: e.target.value})}
                 />
@@ -221,6 +224,7 @@ export default function Timeline() {
               <textarea 
                 className="input-control" 
                 rows={4} 
+                spellCheck={true}
                 value={newProject.description}
                 onChange={(e) => setNewProject({...newProject, description: e.target.value})}
               ></textarea>

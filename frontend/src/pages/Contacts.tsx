@@ -253,6 +253,7 @@ export default function Contacts() {
                   type="text" 
                   className="input-control" 
                   required 
+                  spellCheck={true}
                   value={newContact.firstName}
                   onChange={(e) => setNewContact({...newContact, firstName: e.target.value})}
                 />
@@ -263,6 +264,7 @@ export default function Contacts() {
                   type="text" 
                   className="input-control" 
                   required 
+                  spellCheck={true}
                   value={newContact.lastName}
                   onChange={(e) => setNewContact({...newContact, lastName: e.target.value})}
                 />
@@ -293,20 +295,32 @@ export default function Contacts() {
                 type="text" 
                 className="input-control" 
                 placeholder="e.g. React, UX Design, Product Management"
+                spellCheck={true}
                 value={newContact.skills}
                 onChange={(e) => setNewContact({...newContact, skills: e.target.value})}
               />
             </div>
             
-            <div className="input-group">
-              <label className="input-label">Relationship Strength (1-10)</label>
-              <input 
-                type="number" 
-                min="1" max="10"
-                className="input-control" 
-                value={newContact.relationshipStrength}
-                onChange={(e) => setNewContact({...newContact, relationshipStrength: e.target.value === '' ? '' : parseInt(e.target.value)})}
-              />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div className="input-group">
+                <label className="input-label">Relationship Strength (1-10)</label>
+                <input 
+                  type="number" 
+                  min="1" max="10"
+                  className="input-control" 
+                  value={newContact.relationshipStrength}
+                  onChange={(e) => setNewContact({...newContact, relationshipStrength: e.target.value === '' ? '' : parseInt(e.target.value)})}
+                />
+              </div>
+              <div className="input-group">
+                <label className="input-label">Last Contacted (Date)</label>
+                <input 
+                  type="date" 
+                  className="input-control" 
+                  value={newContact.lastContacted}
+                  onChange={(e) => setNewContact({...newContact, lastContacted: e.target.value})}
+                />
+              </div>
             </div>
 
             <div className="input-group">
@@ -314,6 +328,7 @@ export default function Contacts() {
               <textarea 
                 className="input-control" 
                 rows={3} 
+                spellCheck={true}
                 value={newContact.notes}
                 onChange={(e) => setNewContact({...newContact, notes: e.target.value})}
               ></textarea>
@@ -385,16 +400,18 @@ export default function Contacts() {
                 </div>
               </div>
               
-              {contact.skills && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.5rem' }}>
-                  {contact.skills.split(',').map(s => s.trim()).slice(0, 3).map((skill, idx) => (
-                    <span key={idx} className="badge" style={{ fontSize: '0.7rem' }}>{skill}</span>
-                  ))}
-                  {contact.skills.split(',').length > 3 && (
-                    <span className="badge" style={{ fontSize: '0.7rem' }}>+</span>
-                  )}
-                </div>
-              )}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.5rem', alignItems: 'center' }}>
+                {contact.skills && (
+                  <>
+                    {contact.skills.split(',').map(s => s.trim()).slice(0, 3).map((skill, idx) => (
+                      <span key={idx} className="badge" style={{ fontSize: '0.7rem' }}>{skill}</span>
+                    ))}
+                    {contact.skills.split(',').length > 3 && (
+                      <span className="badge" style={{ fontSize: '0.7rem' }}>+</span>
+                    )}
+                  </>
+                )}
+              </div>
             </Link>
           ))}
         </div>

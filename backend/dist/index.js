@@ -77,6 +77,33 @@ app.get('/api/projects', async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch projects' });
     }
 });
+// Simple dictionary for offline skill deduplication
+const skillAliases = {
+    'reactjs': 'React',
+    'react.js': 'React',
+    'node js': 'Node.js',
+    'nodejs': 'Node.js',
+    'typescript': 'TypeScript',
+    'javascript': 'JavaScript',
+    'ts': 'TypeScript',
+    'js': 'JavaScript',
+    'ui/ux': 'UI/UX Design',
+    'ux': 'UI/UX Design',
+    'aws': 'AWS',
+    'gcp': 'Google Cloud'
+};
+const normalizeSkills = (skillsString) => {
+    if (!skillsString)
+        return '';
+    const skills = skillsString.split(',').map(s => s.trim()).filter(Boolean);
+    const normalized = skills.map(skill => {
+        const lower = skill.toLowerCase();
+        // Return mapped alias or just capitalize the first letter to standardize
+        return skillAliases[lower] || (skill.charAt(0).toUpperCase() + skill.slice(1));
+    });
+    // Deduplicate array
+    return [...new Set(normalized)].join(', ');
+};
 app.post('/api/projects', async (req, res) => {
     try {
         const { name, company, role, startDate, endDate, description, rating } = req.body;
@@ -147,9 +174,10 @@ app.get('/api/contacts', async (req, res) => {
     }
 });
 app.post('/api/contacts', async (req, res) => {
+    const { firstName, lastName, email, phone, skills, notes, relationshipStrength, lastContacted } = req.body;
+    const cleanSkills = normalizeSkills(skills);
     try {
-        const { firstName, lastName, email, phone, skills, notes, relationshipStrength, lastContacted } = req.body;
-        const result = await db.run('INSERT INTO contacts (firstName, lastName, email, phone, skills, notes, relationshipStrength, lastContacted) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [firstName, lastName, email, phone, skills, notes, relationshipStrength, lastContacted]);
+        const result = await db.run('INSERT INTO contacts (firstName, lastName, email, phone, skills, notes, relationshipStrength, lastContacted) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', [firstName, lastName, email, phone, cleanSkills, notes, relationshipStrength, lastContacted]);
         res.status(201).json({ id: result.lastID });
     }
     catch (error) {
@@ -157,9 +185,10 @@ app.post('/api/contacts', async (req, res) => {
     }
 });
 app.put('/api/contacts/:id', async (req, res) => {
+    const { firstName, lastName, email, phone, skills, notes, relationshipStrength, lastContacted } = req.body;
+    const cleanSkills = normalizeSkills(skills);
     try {
-        const { firstName, lastName, email, phone, skills, notes, relationshipStrength, lastContacted } = req.body;
-        await db.run('UPDATE contacts SET firstName = ?, lastName = ?, email = ?, phone = ?, skills = ?, notes = ?, relationshipStrength = ?, lastContacted = ? WHERE id = ?', [firstName, lastName, email, phone, skills, notes, relationshipStrength, lastContacted, req.params.id]);
+        await db.run('UPDATE contacts SET firstName = ?, lastName = ?, email = ?, phone = ?, skills = ?, notes = ?, relationshipStrength = ?, lastContacted = ? WHERE id = ?', [firstName, lastName, email, phone, cleanSkills, notes, relationshipStrength, lastContacted, req.params.id]);
         res.json({ success: true });
     }
     catch (error) {
