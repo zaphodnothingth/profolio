@@ -39,6 +39,8 @@ export default function Contacts() {
   const [selectedContactIds, setSelectedContactIds] = useState<Set<number>>(new Set());
   const [lastCheckedId, setLastCheckedId] = useState<number | null>(null);
   const [isSelectMode, setIsSelectMode] = useState(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [sortMode, setSortMode] = useState<'nameAsc' | 'nameDesc' | 'lastContacted' | 'relationship'>('nameAsc');
 
   const fetchContacts = async () => {
     try {
@@ -210,14 +212,68 @@ export default function Contacts() {
     }
   };
 
+  const sortedContacts = [...contacts].sort((a, b) => {
+    if (sortMode === 'nameAsc') {
+      const nameA = `${a.firstName} ${a.lastName}`.toLowerCase();
+      const nameB = `${b.firstName} ${b.lastName}`.toLowerCase();
+      return nameA.localeCompare(nameB);
+    }
+    if (sortMode === 'nameDesc') {
+      const nameA = `${a.firstName} ${a.lastName}`.toLowerCase();
+      const nameB = `${b.firstName} ${b.lastName}`.toLowerCase();
+      return nameB.localeCompare(nameA);
+    }
+    if (sortMode === 'relationship') {
+      return (b.relationshipStrength || 0) - (a.relationshipStrength || 0);
+    }
+    if (sortMode === 'lastContacted') {
+      const dateA = a.lastContacted ? new Date(a.lastContacted).getTime() : 0;
+      const dateB = b.lastContacted ? new Date(b.lastContacted).getTime() : 0;
+      return dateB - dateA;
+    }
+    return 0;
+  });
+
   return (
     <div>
-      <div className="page-header">
-        <div>
+      <div className="page-header" style={{ flexWrap: 'wrap', gap: '1rem' }}>
+        <div style={{ flex: 1, minWidth: '250px' }}>
           <h1 className="text-gradient">Contact Book</h1>
           <p className="text-secondary">Manage your professional network contextually.</p>
         </div>
-        <div style={{ display: 'flex', gap: '1rem' }}>
+        
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ display: 'flex', backgroundColor: 'var(--bg-surface-hover)', borderRadius: '8px', padding: '0.25rem', height: 'fit-content' }}>
+            <button 
+              className="btn" 
+              style={{ padding: '0.5rem', background: viewMode === 'grid' ? 'var(--bg-surface)' : 'transparent', border: 'none', borderRadius: '6px', color: viewMode === 'grid' ? 'var(--text-primary)' : 'var(--text-secondary)' }}
+              onClick={() => setViewMode('grid')}
+              title="Grid View"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+            </button>
+            <button 
+              className="btn" 
+              style={{ padding: '0.5rem', background: viewMode === 'list' ? 'var(--bg-surface)' : 'transparent', border: 'none', borderRadius: '6px', color: viewMode === 'list' ? 'var(--text-primary)' : 'var(--text-secondary)' }}
+              onClick={() => setViewMode('list')}
+              title="List View"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+            </button>
+          </div>
+
+          <select 
+            className="input-control" 
+            style={{ width: 'auto', padding: '0.5rem 1rem' }}
+            value={sortMode}
+            onChange={(e) => setSortMode(e.target.value as any)}
+          >
+            <option value="nameAsc">Name (A-Z)</option>
+            <option value="nameDesc">Name (Z-A)</option>
+            <option value="lastContacted">Recently Contacted</option>
+            <option value="relationship">Relationship (High to Low)</option>
+          </select>
+
           {selectedContactIds.size > 0 && isSelectMode && (
             <button className="btn btn-secondary" onClick={handleBulkDelete} style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }}>
               Delete Selected ({selectedContactIds.size})
@@ -357,38 +413,59 @@ export default function Contacts() {
           <button className="btn btn-secondary" onClick={() => setShowAddForm(true)}>Add Contact</button>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
-          {contacts.map((contact, idx) => (
+        <div 
+          style={{ 
+            display: viewMode === 'grid' ? 'grid' : 'flex', 
+            gridTemplateColumns: viewMode === 'grid' ? 'repeat(auto-fill, minmax(300px, 1fr))' : 'none', 
+            flexDirection: viewMode === 'list' ? 'column' : 'row',
+            gap: '1.5rem' 
+          }}
+        >
+          {sortedContacts.map((contact, idx) => (
             <Link 
               key={contact.id} 
               to={`/contacts/${contact.id}`} 
               className={`glass-panel animate-fade-in-up stagger-${(idx % 4) + 1} contact-card`} 
-              style={{ textDecoration: 'none', color: 'inherit', display: 'block', position: 'relative' }}
+              style={{ 
+                textDecoration: 'none', color: 'inherit', position: 'relative',
+                display: viewMode === 'list' ? 'flex' : 'block',
+                alignItems: viewMode === 'list' ? 'center' : 'stretch',
+                padding: viewMode === 'list' ? '1rem' : '1.5rem',
+                gap: viewMode === 'list' ? '1rem' : '0'
+              }}
             >
               {isSelectMode && (
-                <input 
-                  type="checkbox" 
-                  checked={selectedContactIds.has(contact.id)}
-                  onChange={() => {}} // Dummy to suppress React warning
-                  onClick={(e: React.MouseEvent<HTMLInputElement>) => { e.preventDefault(); e.stopPropagation(); handleCheckboxChange(contact.id, e); }}
-                  style={{ position: 'absolute', top: '1.25rem', left: '1.25rem', transform: 'scale(1.2)', cursor: 'pointer', zIndex: 10 }}
-                />
-              )}
-              <button 
-                className="edit-btn"
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleEditClick(contact); }} 
-                style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '0.25rem', zIndex: 10 }}
-                title="Edit Contact"
-              >
-                ✏️
-              </button>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem', paddingLeft: isSelectMode ? '2.5rem' : '0' }}>
                 <div style={{ 
-                  width: '48px', height: '48px', 
+                  position: viewMode === 'grid' ? 'absolute' : 'relative', 
+                  top: viewMode === 'grid' ? '1.25rem' : 'auto', 
+                  left: viewMode === 'grid' ? '1.25rem' : 'auto',
+                  marginRight: viewMode === 'list' ? '1rem' : '0',
+                  display: 'flex', alignItems: 'center'
+                }}>
+                  <input 
+                    type="checkbox" 
+                    checked={selectedContactIds.has(contact.id)}
+                    onChange={() => {}} // Dummy to suppress React warning
+                    onClick={(e: React.MouseEvent<HTMLInputElement>) => { e.preventDefault(); e.stopPropagation(); handleCheckboxChange(contact.id, e); }}
+                    style={{ transform: 'scale(1.2)', cursor: 'pointer', zIndex: 10 }}
+                  />
+                </div>
+              )}
+              
+              <div style={{ 
+                display: 'flex', alignItems: 'center', gap: '1rem', 
+                marginBottom: viewMode === 'grid' ? '1rem' : '0', 
+                paddingLeft: (isSelectMode && viewMode === 'grid') ? '2.5rem' : '0',
+                flex: viewMode === 'list' ? '1' : 'none',
+                minWidth: viewMode === 'list' ? '250px' : 'auto'
+              }}>
+                <div style={{ 
+                  width: viewMode === 'list' ? '40px' : '48px', height: viewMode === 'list' ? '40px' : '48px', 
                   borderRadius: '50%', 
                   background: 'var(--accent-gradient)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontWeight: 'bold', fontSize: '1.2rem', color: 'white'
+                  fontWeight: 'bold', fontSize: viewMode === 'list' ? '1rem' : '1.2rem', color: 'white',
+                  flexShrink: 0
                 }}>
                   {contact.firstName[0]}{contact.lastName[0]}
                 </div>
@@ -399,8 +476,22 @@ export default function Contacts() {
                   </div>
                 </div>
               </div>
+
+              {viewMode === 'list' && (
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '1rem', minWidth: '150px' }}>
+                  <div className="text-secondary" style={{ fontSize: '0.85rem' }}>
+                    {contact.lastContacted ? `Last Contacted: ${contact.lastContacted}` : 'No recent contact'}
+                  </div>
+                </div>
+              )}
               
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.5rem', alignItems: 'center' }}>
+              <div style={{ 
+                display: 'flex', flexWrap: 'wrap', gap: '0.4rem', 
+                marginTop: viewMode === 'grid' ? '0.5rem' : '0', 
+                alignItems: 'center',
+                flex: viewMode === 'list' ? '2' : 'none',
+                justifyContent: viewMode === 'list' ? 'flex-start' : 'flex-start'
+              }}>
                 {contact.skills && (
                   <>
                     {contact.skills.split(',').map(s => s.trim()).slice(0, 3).map((skill, idx) => (
@@ -411,7 +502,23 @@ export default function Contacts() {
                     )}
                   </>
                 )}
+                {viewMode === 'list' && <div style={{marginLeft: 'auto', fontWeight: 'bold'}}>{contact.relationshipStrength}/10</div>}
               </div>
+
+              <button 
+                className="edit-btn"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleEditClick(contact); }} 
+                style={{ 
+                  position: viewMode === 'grid' ? 'absolute' : 'relative', 
+                  top: viewMode === 'grid' ? '1rem' : 'auto', 
+                  right: viewMode === 'grid' ? '1rem' : 'auto', 
+                  marginLeft: viewMode === 'list' ? '1rem' : '0',
+                  background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '0.25rem', zIndex: 10 
+                }}
+                title="Edit Contact"
+              >
+                ✏️
+              </button>
             </Link>
           ))}
         </div>
