@@ -26,6 +26,7 @@ export default function Timeline() {
   const [roleInsights, setRoleInsights] = useState<RoleInsight[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [isAllExpanded, setIsAllExpanded] = useState(false);
   const [newProject, setNewProject] = useState<{
     id?: number;
     name: string;
@@ -81,6 +82,19 @@ export default function Timeline() {
     const yrs = Math.floor(months / 12);
     const m = months % 12;
     return m > 0 ? `${yrs}y ${m}m` : `${yrs}y`;
+  };
+
+  const toggleExpandAll = () => {
+    const newExpandedState = !isAllExpanded;
+    const detailsElements = document.querySelectorAll('.timeline-container details');
+    detailsElements.forEach(el => {
+      if (newExpandedState) {
+        el.setAttribute('open', '');
+      } else {
+        el.removeAttribute('open');
+      }
+    });
+    setIsAllExpanded(newExpandedState);
   };
 
   const handleCreateProject = async (e: React.FormEvent) => {
@@ -180,8 +194,17 @@ export default function Timeline() {
       </div>
 
       {roleInsights.length > 0 && !showAddForm && (
-        <div className="glass-panel" style={{ marginBottom: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-secondary)' }}>Top Roles / Skills Overview</h3>
+        <div className="glass-panel" style={{ 
+          marginBottom: '3rem', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: '1rem',
+          borderLeft: '4px solid var(--primary-color)',
+          background: 'linear-gradient(90deg, rgba(59, 130, 246, 0.05) 0%, transparent 100%)'
+        }}>
+          <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--primary-color)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ fontSize: '1.4rem' }}>🏆</span> Top Roles & Expertise
+          </h3>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
             {roleInsights.map((insight, idx) => (
               <div key={idx} style={{ 
@@ -303,8 +326,21 @@ export default function Timeline() {
           <button className="btn btn-secondary" onClick={() => setShowAddForm(true)}>Add Project</button>
         </div>
       ) : (
-        <div className="timeline-container" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          {projects.map((project, idx) => (
+        <div className="timeline-wrapper">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '1.5rem', paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-color)' }}>
+            <h2 className="text-secondary" style={{ margin: 0, fontSize: '1.4rem' }}>Experience</h2>
+            <button 
+              className="btn btn-secondary" 
+              onClick={toggleExpandAll}
+              style={{ padding: '0.25rem 0.75rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              title={isAllExpanded ? "Collapse All" : "Expand All"}
+            >
+              <span style={{ fontSize: '1.4rem', transform: isAllExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.3s ease', lineHeight: 1 }}>{isAllExpanded ? '⤡' : '⤢'}</span>
+              <span>{isAllExpanded ? 'Collapse All' : 'Expand All'}</span>
+            </button>
+          </div>
+          <div className="timeline-container" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            {projects.map((project, idx) => (
             <details key={project.id} className={`glass-panel animate-fade-in-up stagger-${(idx % 4) + 1} project-card`} style={{ cursor: 'pointer' }}>
               <summary style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', listStyle: 'none' }}>
                 <div>
@@ -340,6 +376,7 @@ export default function Timeline() {
               </div>
             </details>
           ))}
+          </div>
         </div>
       )}
     </div>
