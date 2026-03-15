@@ -99,6 +99,25 @@ export default function ProjectDetails() {
     }
   };
 
+  const handleUnlinkContact = async (e: React.MouseEvent, contactId: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      const res = await fetch(`http://localhost:3001/api/project-contacts/${id}/${contactId}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        setContacts(contacts.filter(c => c.id !== contactId));
+        addToast('Contact unlinked.', 'success');
+      } else {
+        addToast('Failed to unlink contact.', 'error');
+      }
+    } catch (error) {
+      console.error('Failed to unlink contact', error);
+      addToast('Network error while unlinking.', 'error');
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
@@ -183,6 +202,14 @@ export default function ProjectDetails() {
                         <div style={{ fontWeight: '500' }}>{c.firstName} {c.lastName}</div>
                       </div>
                       <span className="badge">{c.projectRole}</span>
+                      <button 
+                        className="btn btn-secondary" 
+                        style={{ padding: '0.2rem 0.6rem', fontSize: '0.8rem', color: 'var(--danger)', borderColor: 'var(--danger)' }} 
+                        onClick={(e) => handleUnlinkContact(e, c.id)}
+                        title="Unlink Contact"
+                      >
+                        ✕
+                      </button>
                     </div>
                   </Link>
                 ))}

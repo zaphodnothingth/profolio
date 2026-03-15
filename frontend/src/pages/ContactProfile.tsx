@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { useToast } from '../context/ToastContext';
 
 interface Contact {
   id: number;
@@ -25,20 +26,26 @@ const API_URL = 'http://localhost:3001/api/contacts';
 
 export default function ContactProfile() {
   const { id } = useParams<{ id: string }>();
+  const { addToast } = useToast();
   const [contact, setContact] = useState<Contact | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [allProjects, setAllProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showLinkMenu, setShowLinkMenu] = useState(false);
+  const [linkRole, setLinkRole] = useState('');
 
   useEffect(() => {
     const fetchContactData = async () => {
       try {
-        const [contactRes, projectsRes] = await Promise.all([
+        const [contactRes, projectsRes, allProjectsRes] = await Promise.all([
           fetch(`${API_URL}/${id}`),
-          fetch(`${API_URL}/${id}/projects`)
+          fetch(`${API_URL}/${id}/projects`),
+          fetch(`http://localhost:3001/api/projects`)
         ]);
         
         if (contactRes.ok) setContact(await contactRes.json());
         if (projectsRes.ok) setProjects(await projectsRes.json());
+        if (allProjectsRes.ok) setAllProjects(await allProjectsRes.json());
       } catch (error) {
         console.error('Failed to fetch contact details', error);
       } finally {
@@ -47,6 +54,47 @@ export default function ContactProfile() {
     };
     fetchContactData();
   }, [id]);
+
+  const handleLinkProject = async (projectId: number) => {
+    try {
+      const res = await fetch('http://localhost:3001/api/project-contacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, contactId: id, role: linkRole || 'Collaborator' })
+      });
+      if (res.ok) {
+        setShowLinkMenu(false);
+        setLinkRole('');
+        const projectsRes = await fetch(`${API_URL}/${id}/projects`);
+        if (projectsRes.ok) setProjects(await projectsRes.json());
+        addToast('Project linked successfully!', 'success');
+      } else {
+        addToast('Failed to link project.', 'error');
+      }
+    } catch (error) {
+      console.error('Failed to link project', error);
+      addToast('Network error while linking project.', 'error');
+    }
+  };
+
+  const handleUnlinkProject = async (e: React.MouseEvent, projectId: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      const res = await fetch(`http://localhost:3001/api/project-contacts/${projectId}/${id}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        setProjects(projects.filter(p => p.id !== projectId));
+        addToast('Project unlinked.', 'success');
+      } else {
+        addToast('Failed to unlink project.', 'error');
+      }
+    } catch (error) {
+      console.error('Failed to unlink project', error);
+      addToast('Network error while unlinking.', 'error');
+    }
+  };
 
   // vCard export handled by native <a> tag download attribute now
 
@@ -152,7 +200,37 @@ export default function ContactProfile() {
           </div>
 
           <div className="glass-panel animate-fade-in-up stagger-4">
-            <h3 style={{ marginBottom: '1.5rem' }}>Shared Projects</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h3 style={{ margin: 0 }}>Shared Projects</h3>
+              <button className="btn btn-secondary" onClick={() => setShowLinkMenu(!showLinkMenu)} style={{ padding: '0.25rem 0.75rem', fontSize: '0.85rem' }}>
+                {showLinkMenu ? 'Cancel' : 'Link Project'}
+              </button>
+            </div>
+
+            {showLinkMenu && (
+              <div style={{ padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', marginBottom: '1rem' }}>
+                <input 
+                  type="text" 
+                  className="input-control" 
+                  placeholder="Role on project (e.g. Manager...)" 
+                  value={linkRole} 
+                  onChange={e => setLinkRole(e.target.value)}
+                  style={{ marginBottom: '1rem' }}
+                />
+                <div style={{ maxHeight: '150px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {allProjects.filter(ap => !projects.find(p => p.id === ap.id)).map(ap => (
+                    <div key={ap.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem', background: 'rgba(255,255,255,0.05)', borderRadius: '4px' }}>
+                      <span>{ap.name}</span>
+                      <button className="btn btn-primary" style={{ padding: '0.2rem 0.6rem', fontSize: '0.8rem' }} onClick={() => handleLinkProject(ap.id)}>Add</button>
+                    </div>
+                  ))}
+                  {allProjects.filter(ap => !projects.find(p => p.id === ap.id)).length === 0 && (
+                     <p className="text-secondary" style={{ fontStyle: 'italic', fontSize: '0.85rem' }}>No other projects available to link.</p>
+                  )}
+                </div>
+              </div>
+            )}
+
             {projects.length === 0 ? (
               <p className="text-secondary" style={{ fontStyle: 'italic' }}>No projects linked with this contact.</p>
             ) : (
@@ -164,7 +242,17 @@ export default function ContactProfile() {
                         <div style={{ fontWeight: '600', marginBottom: '0.2rem' }}>{p.name}</div>
                         <div className="text-secondary" style={{ fontSize: '0.85rem' }}>{p.company}</div>
                       </div>
-                      <span className="badge">{p.projectRole || 'Collaborator'}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <span className="badge">{p.projectRole || 'Collaborator'}</span>
+                        <button 
+                          className="btn btn-secondary" 
+                          style={{ padding: '0.2rem 0.6rem', fontSize: '0.8rem', color: 'var(--danger)', borderColor: 'var(--danger)' }} 
+                          onClick={(e) => handleUnlinkProject(e, p.id)}
+                          title="Unlink Project"
+                        >
+                          ✕
+                        </button>
+                      </div>
                     </div>
                   </Link>
                 ))}

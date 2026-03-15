@@ -315,6 +315,19 @@ app.post('/api/project-contacts', async (req, res) => {
   }
 });
 
+app.delete('/api/project-contacts/:projectId/:contactId', async (req, res) => {
+  try {
+    const { projectId, contactId } = req.params;
+    await db.run(
+      'DELETE FROM project_contacts WHERE projectId = ? AND contactId = ?',
+      [projectId, contactId]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete project-contact link' });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
