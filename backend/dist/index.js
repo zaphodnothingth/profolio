@@ -114,6 +114,46 @@ app.post('/api/projects', async (req, res) => {
         res.status(500).json({ error: 'Failed to create project' });
     }
 });
+app.get('/api/projects/insights/skills', async (req, res) => {
+    try {
+        const projects = await db.all('SELECT role, startDate, endDate FROM projects');
+        const roleStats = {};
+        const currentDate = new Date();
+        const currentYear = currentDate.getFullYear();
+        const currentMonth = currentDate.getMonth() + 1;
+        for (const proj of projects) {
+            if (!proj.role || !proj.startDate)
+                continue;
+            const [startYearStr, startMonthStr] = proj.startDate.split('-');
+            const startYear = parseInt(startYearStr);
+            const startMonth = parseInt(startMonthStr);
+            let endYear = currentYear;
+            let endMonth = currentMonth;
+            if (proj.endDate) {
+                const [eyStr, emStr] = proj.endDate.split('-');
+                endYear = parseInt(eyStr);
+                endMonth = parseInt(emStr);
+            }
+            let durationMonths = (endYear - startYear) * 12 + (endMonth - startMonth);
+            if (durationMonths <= 0)
+                durationMonths = 1; // minimum 1 month credit
+            const roles = proj.role.split(',').map((r) => r.trim());
+            for (const role of roles) {
+                if (!roleStats[role])
+                    roleStats[role] = 0;
+                roleStats[role] += durationMonths;
+            }
+        }
+        const sortedRoles = Object.entries(roleStats)
+            .map(([name, totalMonths]) => ({ name, durationMonths: totalMonths }))
+            .sort((a, b) => b.durationMonths - a.durationMonths);
+        res.json(sortedRoles);
+    }
+    catch (error) {
+        console.error('Failed to calculate skill insights', error);
+        res.status(500).json({ error: 'Failed to calculate skill insights' });
+    }
+});
 app.put('/api/projects/:id', async (req, res) => {
     try {
         const { name, company, role, startDate, endDate, description, rating } = req.body;

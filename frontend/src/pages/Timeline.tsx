@@ -13,11 +13,17 @@ interface Project {
   rating?: number;
 }
 
+interface RoleInsight {
+  name: string;
+  durationMonths: number;
+}
+
 const API_URL = 'http://localhost:3001/api/projects';
 
 export default function Timeline() {
   const { addToast } = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
+  const [roleInsights, setRoleInsights] = useState<RoleInsight[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newProject, setNewProject] = useState<{
@@ -53,9 +59,29 @@ export default function Timeline() {
     }
   };
 
+  const fetchRoleInsights = async () => {
+    try {
+      const res = await fetch('http://localhost:3001/api/projects/insights/skills');
+      if (res.ok) {
+        const data = await res.json();
+        setRoleInsights(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch role insights', error);
+    }
+  };
+
   useEffect(() => {
     fetchProjects();
+    fetchRoleInsights();
   }, []);
+
+  const formatDuration = (months: number) => {
+    if (months < 12) return `${months} mo`;
+    const yrs = Math.floor(months / 12);
+    const m = months % 12;
+    return m > 0 ? `${yrs}y ${m}m` : `${yrs}y`;
+  };
 
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,6 +111,7 @@ export default function Timeline() {
         setShowAddForm(false);
         setNewProject({ name: '', company: '', role: '', startDate: '', endDate: '', description: '', rating: 5 });
         fetchProjects();
+        fetchRoleInsights();
         addToast(`Project ${isEdit ? 'updated' : 'saved'} successfully!`, 'success');
       } else {
         addToast(`Failed to ${isEdit ? 'update' : 'save'} project.`, 'error');
@@ -107,6 +134,7 @@ export default function Timeline() {
         setShowAddForm(false);
         setNewProject({ name: '', company: '', role: '', startDate: '', endDate: '', description: '', rating: 5 });
         fetchProjects();
+        fetchRoleInsights();
         addToast('Project deleted successfully.', 'success');
       } else {
         addToast('Failed to delete project.', 'error');
@@ -150,6 +178,28 @@ export default function Timeline() {
           {showAddForm ? 'Cancel' : '+ Add Project'}
         </button>
       </div>
+
+      {roleInsights.length > 0 && !showAddForm && (
+        <div className="glass-panel" style={{ marginBottom: '2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-secondary)' }}>Top Roles / Skills Overview</h3>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
+            {roleInsights.map((insight, idx) => (
+              <div key={idx} style={{ 
+                background: 'rgba(59, 130, 246, 0.1)', 
+                border: '1px solid rgba(59, 130, 246, 0.2)', 
+                borderRadius: '8px', 
+                padding: '0.5rem 1rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}>
+                <strong>{insight.name}</strong>
+                <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{formatDuration(insight.durationMonths)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {showAddForm && (
         <div className="glass-panel animate-fade-in-up" style={{ marginBottom: '2rem' }}>
