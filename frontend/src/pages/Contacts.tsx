@@ -41,6 +41,8 @@ export default function Contacts() {
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortMode, setSortMode] = useState<'nameAsc' | 'nameDesc' | 'lastContacted' | 'relationship'>('nameAsc');
+  const [duplicateGroups, setDuplicateGroups] = useState<Contact[][]>([]);
+  const [showDedupeModal, setShowDedupeModal] = useState(false);
 
   const fetchContacts = async () => {
     try {
@@ -234,6 +236,42 @@ export default function Contacts() {
     return 0;
   });
 
+  const fetchDuplicates = async () => {
+    setShowDedupeModal(true);
+    try {
+      const res = await fetch('http://localhost:3001/api/contacts/duplicates');
+      if (res.ok) {
+        const data = await res.json();
+        setDuplicateGroups(data);
+      }
+    } catch (error) {
+      addToast('Error fetching duplicates.', 'error');
+    }
+  };
+
+  const handleMergeGroup = async (group: Contact[]) => {
+    if (group.length < 2) return;
+    const primaryContactId = group[0].id;
+    const duplicateContactIds = group.slice(1).map(c => c.id);
+
+    try {
+      const res = await fetch('http://localhost:3001/api/contacts/merge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ primaryContactId, duplicateContactIds })
+      });
+      if (res.ok) {
+        addToast('Contacts merged successfully!', 'success');
+        setDuplicateGroups(prev => prev.filter(g => g !== group));
+        fetchContacts();
+      } else {
+        addToast('Failed to merge contacts.', 'error');
+      }
+    } catch (error) {
+      addToast('Network error while merging.', 'error');
+    }
+  };
+
   return (
     <div>
       <div className="page-header" style={{ flexWrap: 'wrap', gap: '1rem' }}>
@@ -274,6 +312,14 @@ export default function Contacts() {
             <option value="relationship">Relationship (High to Low)</option>
           </select>
 
+          <button 
+            className="btn btn-secondary" 
+            onClick={fetchDuplicates}
+            title="Find and merge duplicate contacts"
+          >
+            Find Duplicates
+          </button>
+
           {selectedContactIds.size > 0 && isSelectMode && (
             <button className="btn btn-secondary" onClick={handleBulkDelete} style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }}>
               Delete Selected ({selectedContactIds.size})
@@ -297,6 +343,33 @@ export default function Contacts() {
           </button>
         </div>
       </div>
+
+      {showDedupeModal && (
+        <div className="glass-panel" style={{ marginBottom: '2rem', border: '1px solid var(--accent-light)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h2 style={{ margin: 0 }}>Intelligent Deduplication</h2>
+            <button className="btn btn-secondary" onClick={() => setShowDedupeModal(false)}>Close</button>
+          </div>
+          {duplicateGroups.length === 0 ? (
+            <p className="text-secondary">No exact duplicate contacts found.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <p className="text-secondary">We found contacts with identical names. Merging them will combine their skills, notes, and project links.</p>
+              {duplicateGroups.map((group, idx) => (
+                <div key={idx} style={{ padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <strong>{group[0].firstName} {group[0].lastName}</strong> ({group.length} entries found)
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      IDs: {group.map(c => c.id).join(', ')}
+                    </div>
+                  </div>
+                  <button className="btn btn-primary" onClick={() => handleMergeGroup(group)}>Merge All</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {showAddForm && (
         <div className="glass-panel animate-fade-in-up" style={{ marginBottom: '2rem' }}>

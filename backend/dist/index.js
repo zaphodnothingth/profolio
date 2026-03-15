@@ -184,6 +184,75 @@ app.post('/api/contacts', async (req, res) => {
         res.status(500).json({ error: 'Failed to create contact' });
     }
 });
+app.get('/api/contacts/duplicates', async (req, res) => {
+    try {
+        // Find contacts with the exact same firstName and lastName
+        // We group them and return arrays of full contact objects if count > 1
+        const duplicateGroups = await db.all(`
+      SELECT LOWER(firstName) as fn, LOWER(lastName) as ln, COUNT(*) as c
+      FROM contacts
+      GROUP BY fn, ln
+      HAVING c > 1
+    `);
+        if (duplicateGroups.length === 0) {
+            return res.json([]);
+        }
+        const allDuplicates = [];
+        for (const group of duplicateGroups) {
+            const contacts = await db.all('SELECT * FROM contacts WHERE LOWER(firstName) = ? AND LOWER(lastName) = ? ORDER BY id ASC', [group.fn, group.ln]);
+            allDuplicates.push(contacts);
+        }
+        res.json(allDuplicates);
+    }
+    catch (error) {
+        res.status(500).json({ error: 'Failed to fetch duplicates' });
+    }
+});
+app.post('/api/contacts/merge', async (req, res) => {
+    try {
+        const { primaryContactId, duplicateContactIds } = req.body;
+        if (!primaryContactId || !Array.isArray(duplicateContactIds) || duplicateContactIds.length === 0) {
+            return res.status(400).json({ error: 'Invalid payload' });
+        }
+        const primary = await db.get('SELECT * FROM contacts WHERE id = ?', [primaryContactId]);
+        if (!primary)
+            return res.status(404).json({ error: 'Primary contact not found' });
+        let allSkills = primary.skills ? [primary.skills] : [];
+        let allNotes = primary.notes ? [primary.notes] : [];
+        const placeholders = duplicateContactIds.map(() => '?').join(',');
+        const duplicates = await db.all(`SELECT * FROM contacts WHERE id IN (${placeholders})`, duplicateContactIds);
+        for (const dup of duplicates) {
+            if (dup.skills)
+                allSkills.push(dup.skills);
+            if (dup.notes)
+                allNotes.push(`[Merged Notes]: ${dup.notes}`);
+        }
+        const mergedSkills = normalizeSkills(allSkills.join(', '));
+        const mergedNotes = allNotes.join('\\n\\n');
+        // Update primary contact
+        await db.run('UPDATE contacts SET skills = ?, notes = ? WHERE id = ?', [mergedSkills, mergedNotes, primaryContactId]);
+        // Re-assign projects from duplicates to primary, ignoring constraint errors if relationship already exists
+        for (const dupId of duplicateContactIds) {
+            const projects = await db.all('SELECT * FROM project_contacts WHERE contactId = ?', [dupId]);
+            for (const proj of projects) {
+                try {
+                    await db.run('INSERT INTO project_contacts (projectId, contactId, role) VALUES (?, ?, ?)', [proj.projectId, primaryContactId, proj.role]);
+                }
+                catch (e) {
+                    // Ignore PRIMARY KEY constraint if the primary contact was already linked to this project
+                }
+            }
+        }
+        // Delete duplicates and their old links
+        await db.run(`DELETE FROM project_contacts WHERE contactId IN (${placeholders})`, duplicateContactIds);
+        await db.run(`DELETE FROM contacts WHERE id IN (${placeholders})`, duplicateContactIds);
+        res.json({ success: true });
+    }
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to merge contacts' });
+    }
+});
 app.put('/api/contacts/:id', async (req, res) => {
     const { firstName, lastName, email, phone, skills, notes, relationshipStrength, lastContacted } = req.body;
     const cleanSkills = normalizeSkills(skills);
